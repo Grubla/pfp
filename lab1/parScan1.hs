@@ -42,6 +42,15 @@ upSweep f xs = force first `par` (force second `pseq` ((first ++ (init second)) 
 
 clear xs = (init xs)++[iden]
 
+parScan2 f []       = []
+parScan2 f (x:[])   = [x]
+parScan2 f (x:y:[]) = x:[f x y]
+parScan2 f xs       = force first `par` (force second `pseq` (first ++ (map (f (last first)) second)))
+    where 
+        (xs1, xs2)  = split xs
+        first       = parScan2 f xs1
+        second      = parScan2 f xs2
+
 myScan1 :: (a -> a -> a) -> [a] -> [a]
 myScan1 f (x:[]) = x:[]
 myScan1 f (x:xs) = x:myScan1' f x xs
@@ -50,8 +59,11 @@ myScan1' f s (x:[]) = (f s x):[]
 myScan1' f s (x:xs) = ish:(myScan1' f ish xs) 
     where ish = f s x
 
-iden = 1
-op = (*)
+iden :: (Num a) => a
+iden = 0
 
-main = defaultMain [bench "Parallel" (nf (parScan1 op) randomInts), bench "Sequential" (nf (myScan1 op) randomInts)]
-randomInts = take 500 (randoms (mkStdGen 211570155)) :: [Integer]
+op :: (Num a) => (a -> a -> a)
+op = (+)
+
+main = defaultMain [bench "Parallel" (nf (parScan2 op) randomInts), bench "Sequential" (nf (myScan1 op) randomInts)]
+randomInts = take 500000 (randoms (mkStdGen 211570155)) :: [Integer]
