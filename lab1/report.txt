@@ -1,0 +1,48 @@
+benchmarking Parallel1
+time                 4.820 s    (4.466 s .. 5.265 s)
+                     0.999 R²   (0.998 R² .. 1.000 R²)
+mean                 4.667 s    (4.574 s .. 4.739 s)
+std dev              112.3 ms   (0.0 s .. 125.4 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking Parallel2
+time                 1.363 s    (1.322 s .. 1.408 s)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.391 s    (1.380 s .. 1.412 s)
+std dev              17.89 ms   (0.0 s .. 18.50 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking Parallel3
+time                 3.041 s    (2.590 s .. 4.041 s)
+                     0.987 R²   (0.978 R² .. 1.000 R²)
+mean                 2.731 s    (2.607 s .. 2.853 s)
+std dev              208.1 ms   (543.9 as .. 210.2 ms)
+variance introduced by outliers: 21% (moderately inflated)
+
+benchmarking Sequential
+time                 64.60 ms   (64.53 ms .. 64.66 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 64.68 ms   (64.62 ms .. 64.75 ms)
+std dev              110.6 μs   (79.66 μs .. 146.1 μs)
+
+ 114,134,832,824 bytes allocated in the heap
+  56,914,634,360 bytes copied during GC
+     115,260,696 bytes maximum residency (361 sample(s))
+      17,145,480 bytes maximum slop
+             312 MB total memory in use (0 MB lost due to fragmentation)
+
+                                    Tot time (elapsed)  Avg pause  Max pause
+  Gen  0     186415 colls, 186415 par   87.78s   43.98s     0.0002s    0.0042s
+  Gen  1       361 colls,   360 par   77.48s   38.83s     0.1076s    0.3062s
+
+  Parallel GC work balance: 33.14% (serial 0%, perfect 100%)
+
+  TASKS: 6 (1 bound, 5 peak workers (5 total), using -N2)
+
+  SPARKS: 19845555 (246200 converted, 0 overflowed, 0 dud, 19545299 GC'd, 54056 fizzled)
+
+  INIT    time    0.00s  (  0.00s elapsed)
+  MUT     time   86.85s  ( 65.42s elapsed)
+  GC      time  165.27s  ( 82.81s elapsed)
+  EXIT    time    0.01s  (  0.01s elapsed)
+  Total   time  252.14s  (148.24s elapsed)
