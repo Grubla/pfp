@@ -6,16 +6,21 @@ import System.Random (mkStdGen, randoms)
 --parScan1 :: (Num a) => (a -> a -> a) -> [a] -> [a]
 parScan1 f []       = []
 parScan1 f (x:[])   = [x]
-parScan1 f xs       =  eSum xs $ downSweep f $ clear $ upSweep f xs
+parScan1 f xs       =  eSum f xs $ downSweep f $ clear $ upSweep f xs
     
 --eSum :: (Num a) => [a] -> [a] -> [a]
-eSum (x:[]) (y:[]) = [x+y]
-eSum xs ys = force first `par` (force second `pseq` (first ++ second))  
+eSum f (x:[]) (y:[]) = [f x y]
+eSum f xs ys 
+	| length xs < t = eSum' f xs ys
+	| otherwise 	= force first `par` (force second `pseq` (first ++ second))  
 	where 
-		first 		= eSum xs1 ys1
-		second 		= eSum xs2 ys2
+		first 		= eSum f xs1 ys1
+		second 		= eSum f xs2 ys2
 		(xs1, xs2) 	= split xs
 		(ys1, ys2) 	= split ys
+
+eSum' f (x:[]) (y:[]) = [f x y]
+eSum' f (x:xs) (y:ys) = (f x y) : (eSum' f xs ys)
 
 --split :: [a] -> ([a], [a])
 split xs = (take half xs, drop half xs)
@@ -45,7 +50,9 @@ clear xs = (init xs)++[iden]
 parScan2 f []       = []
 parScan2 f (x:[])   = [x]
 parScan2 f (x:y:[]) = x:[f x y]
-parScan2 f xs       = force first `par` (force second `pseq` (first ++ (map (f (last first)) second)))
+parScan2 f xs       
+	| length xs < t = myScan1 f xs
+	| otherwise		= force first `par` (force second `pseq` (first ++ (map (f (last first)) second)))
     where 
         (xs1, xs2)  = split xs
         first       = parScan2 f xs1
@@ -65,5 +72,10 @@ iden = 0
 op :: (Num a) => (a -> a -> a)
 op = (+)
 
-main = defaultMain [bench "Parallel" (nf (parScan2 op) randomInts), bench "Sequential" (nf (myScan1 op) randomInts)]
-randomInts = take 500000 (randoms (mkStdGen 211570155)) :: [Integer]
+t :: (Num a) => a
+t = 8
+
+main = defaultMain [bench "Parallel1" (nf (parScan1 op) randomInts), 
+	bench "Parallel2" (nf (parScan2 op) randomInts),
+	bench "Sequential" (nf (myScan1 op) randomInts)]
+randomInts = take 50000 (randoms (mkStdGen 211570155)) :: [Integer]
