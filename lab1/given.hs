@@ -17,7 +17,8 @@ mX, mY, sdX, sdY :: Float
 mX = 0
 mY = 0
 sdX = 0.5
-sdY = 1.5    
+sdY = 1.5 
+n = 500000
 
 generate2DSamplesList :: Int           -- number of samples to generate
                   -> Float -> Float    -- X and Y mean
@@ -30,8 +31,10 @@ generate2DSamplesList n mx my sdx sdy = do
       ysamples = normals' (my,sdy) geny
   return $ zipWith (:+) (take n xsamples) ysamples
 
-
-
+randomFloats = ((generate2DSamplesList n mX mY sdX sdY)) :: IO [Complex Float]
+main = do 
+          rnd <- randomFloats
+          print $ sum $ fft rnd
 
 -- Task 1
 divConq :: (prob -> Bool)              -- is the problem indivisible?
