@@ -28,14 +28,14 @@ generate2DSamplesList :: Int           -- number of samples to generate
 generate2DSamplesList n mx my sdx sdy = do
   let gen = mkStdGen 657654532 
   let (genx, geny) = split gen
-      xsamples = normals' (mx,sdx) (mkStdGen 1337) --genx
-      ysamples = normals' (my,sdy) (mkStdGen 1338) --geny
+      xsamples = normals' (mx,sdx) genx
+      ysamples = normals' (my,sdy) geny
   return $ zipWith (:+) (take n xsamples) ysamples
 
 randomFloats = ((generate2DSamplesList n mX mY sdX sdY)) :: IO [Complex Float]
 main = do 
           rnd <- randomFloats
-          print $ sum $ fftPar rnd
+          print $ last $ force $ fft2 rnd
 
 -- Task 1
 divConq :: (prob -> Bool)              -- is the problem indivisible?
@@ -64,7 +64,7 @@ dft xs = [ sum [ xs!!j * tw n (j*k) | j <- [0..n']] | k <- [0..n']]
 fftPar :: [Complex Float] -> [Complex Float]
 fftPar [a] = [a]
 fftPar as 
-  | length as < 80 = fft as
+  | length as < 10 = fft as
   | otherwise      = runEval $ do
     let (cs, ds) = bflySPar as
     ls <- rpar $ force fftPar cs
@@ -74,7 +74,7 @@ fftPar as
 
 bflySPar :: [Complex Float] -> ([Complex Float], [Complex Float])
 bflySPar as 
-  | length as < 20  = bflyS as
+  | length as < 10  = bflyS as
   | otherwise       = runEval $ do 
     let (ls,rs) = halve as
     los <- rpar $ force zipWith (+) ls rs
@@ -85,6 +85,24 @@ bflySPar as
 
 -- In case you are wondering, this is the Decimation in Frequency (DIF) 
 -- radix 2 Cooley-Tukey FFT
+
+fft2 :: [Complex Float] -> [Complex Float]
+fft2 [a] = [a]
+fft2 as 
+  | length as < 40  = fft as
+  | otherwise       = interleave ls rs
+    where
+      (ls,rs) = force ( (fft2 cs, fft2 ds) `using` (parTuple2 rpar rseq))
+      (cs,ds) = bflyS as
+
+bflyS2 :: [Complex Float] -> ([Complex Float], [Complex Float])
+bflyS2 as = runEval $ do 
+      let (ls,rs) = halve as
+      los <- rpar $  zipWith (+) ls rs
+      ros <- rseq $  zipWith (-) ls rs
+      rts <- rseq $ zipWith (*) ros [tw (length as) i | i <- [0..(length ros) - 1]]
+      rseq los
+      return (los,rts)
 
 fft :: [Complex Float] -> [Complex Float]
 fft [a] = [a]
