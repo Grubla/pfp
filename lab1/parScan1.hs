@@ -1,6 +1,6 @@
 import Control.Parallel (par, pseq)
 import Control.Parallel.Strategies (rpar, rseq, runEval)
-import Control.DeepSeq (force, NFData)
+import Control.DeepSeq (force, NFData, rnf)
 import Criterion.Main
 import System.Random (mkStdGen, randoms)
 
@@ -81,19 +81,22 @@ myScan1' f s (x:xs) = ish:(myScan1' f ish xs)
     where ish = f s x
 
 iden :: (Num a) => a
-iden = 0
+iden = 1
 
 op :: (Num a) => (a -> a -> a)
-op = (+)
+op = (*)
 
 t :: (Num a) => a
-t = 8
+t = 20
 
-main = print $ sum $ scanl1 op randomInts
+main = do
+	let ps = parScan2 op randomInts
+	let l = last ps
+	print (l)
 
 --main = defaultMain [bench "Parallel1" (nf (parScan1 op) randomInts), 
 --	bench "Parallel2" (nf (parScan2 op) randomInts),
 --	bench "Parallel3" (nf (parScan3 op) randomInts),
 --	bench "Sequential" (nf (myScan1 op) randomInts)]
 
-randomInts = take 500000 (randoms (mkStdGen 211570155)) :: [Integer]
+randomInts = take 5000 (randoms (mkStdGen 211570155)) :: [Integer]
