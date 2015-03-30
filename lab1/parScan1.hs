@@ -60,12 +60,14 @@ parScan2 f xs
         first       = parScan2 f xs1
         second      = parScan2 f xs2
 
-parScan3 :: (a -> a -> a) -> [a] -> [a]
+parScan3 :: NFData a => (a -> a -> a) -> [a] -> [a]
 parScan3 f (x:[])   = [x]
 parScan3 f (x:y:[]) = x:[f x y]
-parScan3 f xs  		= 	runEval $ do
-						first <- rpar (parScan3 f xs1)
-						second <- rseq (parScan3 f xs2)
+parScan3 f xs 
+	| length xs < t = myScan1 f xs
+	| otherwise 	= 	runEval $ do
+						first <- rpar $ force (parScan3 f xs1)
+						second <- rseq $ force (parScan3 f xs2)
 						rseq first
 						return (first ++ (map (f (last first)) second))
 						where (xs1, xs2) = split xs
@@ -87,9 +89,11 @@ op = (+)
 t :: (Num a) => a
 t = 8
 
-main = defaultMain [bench "Parallel1" (nf (parScan1 op) randomInts), 
-	bench "Parallel2" (nf (parScan2 op) randomInts),
-	bench "Parallel3" (nf (parScan3 op) randomInts),
-	bench "Sequential" (nf (myScan1 op) randomInts)]
+main = print $ sum $ parScan3 op randomInts
+
+--main = defaultMain [bench "Parallel1" (nf (parScan1 op) randomInts), 
+--	bench "Parallel2" (nf (parScan2 op) randomInts),
+--	bench "Parallel3" (nf (parScan3 op) randomInts),
+--	bench "Sequential" (nf (myScan1 op) randomInts)]
 
 randomInts = take 500000 (randoms (mkStdGen 211570155)) :: [Integer]
