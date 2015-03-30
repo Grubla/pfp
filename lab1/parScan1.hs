@@ -89,7 +89,7 @@ op = (+)
 t :: (Num a) => a
 t = 8
 
-main = print $ sum $ parScan3 op randomInts
+main = print $ sum $ scanl1 op randomInts
 
 --main = defaultMain [bench "Parallel1" (nf (parScan1 op) randomInts), 
 --	bench "Parallel2" (nf (parScan2 op) randomInts),
