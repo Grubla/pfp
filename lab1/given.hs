@@ -5,6 +5,7 @@ import System.Random
 import Data.Random.Normal
 import Criterion.Main
 import Control.Parallel
+import Control.DeepSeq (force, NFData)
 import Control.Monad.Par  
 import Control.Parallel.Strategies
 
@@ -18,23 +19,23 @@ mX = 0
 mY = 0
 sdX = 0.5
 sdY = 1.5 
-n = 500000
+n = 18000
 
 generate2DSamplesList :: Int           -- number of samples to generate
                   -> Float -> Float    -- X and Y mean
                   -> Float -> Float    -- X and Y standard deviations
                   -> IO [Complex Float]
 generate2DSamplesList n mx my sdx sdy = do
-  gen <- getStdGen
+  let gen = mkStdGen 657654532 
   let (genx, geny) = split gen
-      xsamples = normals' (mx,sdx) genx
-      ysamples = normals' (my,sdy) geny
+      xsamples = normals' (mx,sdx) (mkStdGen 1337) --genx
+      ysamples = normals' (my,sdy) (mkStdGen 1338) --geny
   return $ zipWith (:+) (take n xsamples) ysamples
 
 randomFloats = ((generate2DSamplesList n mX mY sdX sdY)) :: IO [Complex Float]
 main = do 
           rnd <- randomFloats
-          print $ sum $ fft rnd
+          print $ sum $ fftPar rnd
 
 -- Task 1
 divConq :: (prob -> Bool)              -- is the problem indivisible?
@@ -60,7 +61,27 @@ dft xs = [ sum [ xs!!j * tw n (j*k) | j <- [0..n']] | k <- [0..n']]
     n = length xs
     n' = n-1
 
+fftPar :: [Complex Float] -> [Complex Float]
+fftPar [a] = [a]
+fftPar as 
+  | length as < 80 = fft as
+  | otherwise      = runEval $ do
+    let (cs, ds) = bflySPar as
+    ls <- rpar $ force fftPar cs
+    rs <- rseq $ force fftPar ds
+    rseq ls
+    return (interleave ls rs)
 
+bflySPar :: [Complex Float] -> ([Complex Float], [Complex Float])
+bflySPar as 
+  | length as < 20  = bflyS as
+  | otherwise       = runEval $ do 
+    let (ls,rs) = halve as
+    los <- rpar $ force zipWith (+) ls rs
+    ros <- rseq $ force zipWith (-) ls rs
+    rts <- rseq $ force zipWith (*) ros [tw (length as) i | i <- [0..(length ros) -1]] 
+    rseq los
+    return (los, rts)
 
 -- In case you are wondering, this is the Decimation in Frequency (DIF) 
 -- radix 2 Cooley-Tukey FFT
