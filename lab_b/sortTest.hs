@@ -1,10 +1,13 @@
 import Criterion.Main
 import System.Random (mkStdGen, randoms)
+import Data.List
+import Data.Array.Repa as R
+import Data.Functor.Identity
 
 quickSortS1 :: (Ord a) => [a] -> [a]
 quickSortS1 []     = []
 quickSortS1 (x:[]) = [x]
-quickSortS1 (x:xs) = less ++ equal ++ greater
+quickSortS1 (x:xs) = less Prelude.++ equal Prelude.++ greater
   where less     = quickSortS1 [y | y <- xs, y < x]
         equal    = [y | y <- (x:xs) , y == x]
         greater  = quickSortS1 [y | y <- xs , y > x]
@@ -23,7 +26,26 @@ mergeS1 (x:xs) (y:ys)
   | x < y       = x:(mergeS1 xs (y:ys))
   | otherwise   = y:(mergeS1 (x:xs) ys)
 
-main = defaultMain [bench "MergeS1" (nf mergeSortS1 randomInts),
-  bench "QuickS1" (nf quickSortS1 randomInts)]
+quickSortP1 :: [Int] -> [Int]
+quickSortP1 []      = []
+quickSortP1 (x:[])  = [x]
+quickSortP1 xs      = toList $ quickSortP1' repaList
+  where repaList = (fromListUnboxed (Z :. ((length xs)::Int)) xs :: Array U DIM1 Int)
 
-randomInts = take 100000 (randoms (mkStdGen 17465864)) :: [Integer]
+quickSortP1' :: Array U DIM1 Int -> Array D DIM1 Int
+quickSortP1' ys 
+  | n <= 1      = delay ys
+  | otherwise   = runIdentity $ do 
+  let pivot     = ys!(Z:.0)
+  less          <- selectP (\a -> (ys!(Z:.a)) < pivot) (\a -> (ys!(Z:.a))) n
+  equal         <- selectP (\a -> (ys!(Z:.a)) == pivot) (\a -> (ys!(Z:.a))) n
+  greater       <- selectP (\a -> (ys!(Z:.a)) > pivot) (\a -> (ys!(Z:.a))) n
+  return $ (quickSortP1' less) R.++ (delay equal) R.++ (quickSortP1' greater)
+    where (Z:.n)    = extent ys
+
+main = defaultMain [bench "Sort" (nf sort randomInts),
+  bench "MergeS1" (nf mergeSortS1 randomInts),
+  bench "QuickS1" (nf quickSortS1 randomInts),
+  bench "QuickP1" (nf quickSortP1 randomInts)]
+
+randomInts = take 50 (randoms (mkStdGen 17465864)) :: [Int]
