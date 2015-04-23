@@ -107,7 +107,7 @@ buySellGS as =
 		ids = (fromListUnboxed (Z :. (n::Int)) [0..(n-1)] :: Array U DIM1 Int)
 
 bestSellS' :: Array U DIM1 Int -> Int -> Int -> Array U DIM1 Int
-bestSellS' as bestIndex 0					= arrIdxS bestIndex
+bestSellS' as bestIndex 0						= arrIdxS bestIndex
 bestSellS' as bestIndex currIndex
 	| as!(Z:.bestIndex) >= as!(Z:.currIndex)	= computeS $ R.append (bestSellS' as bestIndex (currIndex-1)) (arrIdxS bestIndex)
 	| otherwise									= computeS $ R.append (bestSellS' as currIndex (currIndex-1)) (arrIdxS currIndex)
