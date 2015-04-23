@@ -97,7 +97,7 @@ mainMainGS :: [Int] -> Array U DIM0 (Int, Int, Int)
 mainMainGS as = buySellGS $ (fromListUnboxed (Z :. ((length as)::Int)) as :: Array U DIM1 Int)
 
 buySellGS :: Array U DIM1 Int -> Array U DIM0 (Int, Int, Int)
-buySellGS as = runIdentity $ do
+buySellGS as =
 	foldS (\a@(_, _, p1) b@(_, _, p2) -> if p1 < p2 then b else a) (0,0,0)
 	$ R.map (\i -> 
 		(i, (bestSell!(Z:.i)), ((as!(Z:.(bestSell!(Z:.i)))) - as!(Z:.i)))) ids
@@ -109,8 +109,8 @@ buySellGS as = runIdentity $ do
 bestSellS' :: Array U DIM1 Int -> Int -> Int -> Array U DIM1 Int
 bestSellS' as bestIndex 0					= arrIdxS bestIndex
 bestSellS' as bestIndex currIndex
-	| as!(Z:.bestIndex) >= as!(Z:.currIndex)	= computeS $ R.append (bestSellS' as bestIndex (currIndex-1)) (arrIdxs bestIndex)
-	| otherwise									= computeS $ R.append (bestSellS' as currIndex (currIndex-1)) (arrIdxs currIndex)
+	| as!(Z:.bestIndex) >= as!(Z:.currIndex)	= computeS $ R.append (bestSellS' as bestIndex (currIndex-1)) (arrIdxS bestIndex)
+	| otherwise									= computeS $ R.append (bestSellS' as currIndex (currIndex-1)) (arrIdxS currIndex)
 
 arrIdxS :: Int -> Array U DIM1 Int
 arrIdxS i = (fromListUnboxed (Z :. (1::Int)) [i] :: Array U DIM1 Int)
