@@ -3,6 +3,7 @@ import System.Random (mkStdGen, randoms)
 import Data.List
 import Data.Array.Repa as R
 import Data.Functor.Identity
+import Control.Monad.Par 
 
 quickSortS1 :: (Ord a) => [a] -> [a]
 quickSortS1 []     = []
@@ -42,6 +43,22 @@ quickSortP1' ys
   greater       <- selectP (\a -> (ys!(Z:.a)) > pivot) (\a -> (ys!(Z:.a))) n
   return $ (quickSortP1' less) R.++ (delay equal) R.++ (quickSortP1' greater)
     where (Z:.n)    = extent ys
+
+
+quickSortP2 :: (Ord a) => [a] -> [a]
+quickSortP2 ys = runPar $ go ys 
+  where
+    go ys
+      | (length ys) <= 1  = ys
+      | otherwise         = do
+        let pivot = ys!!0
+        l <- spawn $ go $ filter (\y -> y < pivot) ys
+        e <- spawn $ go $ filter (\y -> y == pivot) ys
+        g <- spawn $ go $ filter (\y -> y > pivot) ys
+        less    <- get l
+        equal   <- get e
+        greater <- get g
+        return (less Data.List.++ greater Data.List.++ equal)
 
 main = defaultMain [bench "Sort" (nf sort randomInts),
   bench "MergeS1" (nf mergeSortS1 randomInts),
