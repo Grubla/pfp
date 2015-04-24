@@ -78,6 +78,7 @@ quickSortP2 ys = runPar $ go ys
 main = defaultMain [bench "Sort" (nf sort randomInts),
   bench "MergeS1" (nf mergeSortS1 randomInts),
   bench "QuickS1" (nf quickSortS1 randomInts),
-  bench "MergeP1" (nf mergeSortP1 randomInts)]
+  bench "MergeP1" (nf mergeSortP1 randomInts),
+  bench "QuickP1" (nf quickSortP1 randomInts)]
 
 randomInts = take 100000 (randoms (mkStdGen 17465864)) :: [Int]
