@@ -4,6 +4,7 @@ import Data.List
 import Data.Array.Repa as R
 import Data.Functor.Identity
 import Control.Monad.Par 
+import Control.DeepSeq (NFData)
 
 quickSortS1 :: (Ord a) => [a] -> [a]
 quickSortS1 []     = []
@@ -59,21 +60,20 @@ quickSortP1' ys
   return $ (quickSortP1' less) R.++ (delay equal) R.++ (quickSortP1' greater)
     where (Z:.n)    = extent ys
 
-
-quickSortP2 :: (Ord a) => [a] -> [a]
+quickSortP2 :: (NFData a) => (Ord a) => [a] -> [a]
 quickSortP2 ys = runPar $ go ys 
   where
-    go ys
-      | (length ys) <= 1  = ys
-      | otherwise         = do
-        let pivot = ys!!0
-        l <- spawn $ go $ filter (\y -> y < pivot) ys
-        e <- spawn $ go $ filter (\y -> y == pivot) ys
-        g <- spawn $ go $ filter (\y -> y > pivot) ys
-        less    <- get l
-        equal   <- get e
-        greater <- get g
-        return (less Data.List.++ greater Data.List.++ equal)
+    go []                 = return []
+    go (y:[])             = return [y]
+    go ys                 = do
+      let pivot = ys!!0
+      l <- spawn $ go $ filter (\y -> y < pivot) ys
+      e <- spawn $ return $ filter (\y -> y == pivot) ys
+      g <- spawn $ go $ filter (\y -> y > pivot) ys
+      less    <- get l
+      equal   <- get e
+      greater <- get g
+      return (less Data.List.++ equal Data.List.++ greater)
 
 main = defaultMain [bench "Sort" (nf sort randomInts),
   bench "MergeS1" (nf mergeSortS1 randomInts),
