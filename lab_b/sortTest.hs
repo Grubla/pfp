@@ -20,6 +20,21 @@ mergeSortS1 (x:[]) = [x]
 mergeSortS1 ls     = mergeS1 (mergeSortS1 l1) (mergeSortS1 l2)
   where (l1,l2) = splitAt (div (length ls) 2) ls
 
+mergeSortP1 :: (NFData a) => (Ord a) => [a] -> [a]
+mergeSortP1 [] = []
+mergeSortP1 ls = 
+  runPar $ go ls
+    where
+      go ls
+        | length ls < 2 = return ls
+        | otherwise  = do
+          let (a,b) = splitAt (div (length ls) 2) ls
+          i <- spawn $ go a
+          j <- spawn $ go b
+          a <- get i
+          b <- get j
+          return (mergeS1 a b)
+
 mergeS1 :: (Ord a) => [a] -> [a] -> [a]
 mergeS1 [] ys = ys
 mergeS1 xs [] = xs
@@ -63,6 +78,6 @@ quickSortP2 ys = runPar $ go ys
 main = defaultMain [bench "Sort" (nf sort randomInts),
   bench "MergeS1" (nf mergeSortS1 randomInts),
   bench "QuickS1" (nf quickSortS1 randomInts),
-  bench "QuickP1" (nf quickSortP1 randomInts)]
+  bench "MergeP1" (nf mergeSortP1 randomInts)]
 
-randomInts = take 50 (randoms (mkStdGen 17465864)) :: [Int]
+randomInts = take 100000 (randoms (mkStdGen 17465864)) :: [Int]
