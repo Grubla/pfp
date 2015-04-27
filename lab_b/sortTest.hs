@@ -1,19 +1,39 @@
 import Criterion.Main
 import System.Random (mkStdGen, randoms)
 import Data.List
-import Data.Array.Repa as R
 import Data.Functor.Identity
+import Control.Parallel.Strategies (rpar, rseq, runEval)
+import Control.Parallel (par, pseq)
 import Control.Monad.Par 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData, force)
+import Control.Parallel.Strategies
 
 quickSortS1 :: (Ord a) => [a] -> [a]
 quickSortS1 []     = []
 quickSortS1 (x:[]) = [x]
-quickSortS1 (x:xs) = less Prelude.++ equal Prelude.++ greater
-  where less     = quickSortS1 [y | y <- xs, y < x]
-        equal    = [y | y <- (x:xs) , y == x]
+quickSortS1 (x:xs) = less ++ [x] ++ greater
+  where less     = quickSortS1 [y | y <- xs, y <= x]
         greater  = quickSortS1 [y | y <- xs , y > x]
 
+quickSortP2 :: Ord a => [a] -> [a]
+quickSortP2 [] = []
+quickSortP2 (x:xs) 
+  | length (x:xs) < 10 = quickSortS1 (x:xs)
+  | otherwise          = runEval $ do 
+    less <- rpar $ force quickSortP2 [y | y <- xs, y <= x]
+    greater <- rpar $ force quickSortP2 [y | y <- xs, y > x]
+    rseq less
+    rseq greater
+    return $ less ++ [x] ++ greater
+
+quickSortP3 :: NFData a => Ord a => [a] -> [a]
+quickSortP3 []     = []
+quickSortP3 (x:xs) 
+  | length (x:xs) < 10 = quickSortS1 (x:xs)
+  | otherwise      = less ++ [x] ++ greater
+    where 
+     (less,greater) = force ( (quickSortP3 [y | y <- xs, y <= x], quickSortP3 [y | y <- xs, y > x]) 
+       `using` (parTuple2 rpar rseq))
 
 mergeSortS1 :: (Ord a) => [a] -> [a]
 mergeSortS1 []     = []
@@ -27,7 +47,7 @@ mergeSortP1 ls =
   runPar $ go ls
     where
       go ls
-        | length ls < 2 = return ls
+        | length ls < 10 = return $ quickSortS1 ls
         | otherwise  = do
           let (a,b) = splitAt (div (length ls) 2) ls
           i <- spawn $ go a
@@ -36,6 +56,28 @@ mergeSortP1 ls =
           b <- get j
           return (mergeS1 a b)
 
+mergeSortP2 :: NFData a => (Ord a) => [a] -> [a]
+mergeSortP2 [] = []
+mergeSortP2 ls 
+  | length ls < 10 = quickSortS1 ls
+  | otherwise      = runEval $ do 
+    let (l1, l2) = splitAt (div (length ls) 2) ls
+    a <- rpar $ force $ mergeSortP2 l1
+    b <- rpar $ force $ mergeSortP2 l2
+    rseq a 
+    rseq b
+    return $ mergeS1 a b 
+
+mergeSortP3 :: NFData a => Ord a => [a] -> [a]
+mergeSortP3 [] = []
+mergeSortP3 ls
+  | length ls < 10 = quickSortS1 ls
+  | otherwise      = mergeS1 a b
+    where 
+     (a,b) = force ( (mergeSortP3 l1, mergeSortP3 l2) 
+       `using` (parTuple2 rpar rseq))
+     (l1, l2) = splitAt (div (length ls) 2) ls
+
 mergeS1 :: (Ord a) => [a] -> [a] -> [a]
 mergeS1 [] ys = ys
 mergeS1 xs [] = xs
@@ -43,42 +85,49 @@ mergeS1 (x:xs) (y:ys)
   | x < y       = x:(mergeS1 xs (y:ys))
   | otherwise   = y:(mergeS1 (x:xs) ys)
 
-quickSortP1 :: [Int] -> [Int]
-quickSortP1 []      = []
-quickSortP1 (x:[])  = [x]
-quickSortP1 xs      = toList $ quickSortP1' repaList
-  where repaList = (fromListUnboxed (Z :. ((length xs)::Int)) xs :: Array U DIM1 Int)
-
-quickSortP1' :: Array U DIM1 Int -> Array D DIM1 Int
-quickSortP1' ys 
-  | n <= 1      = delay ys
-  | otherwise   = runIdentity $ do 
-  let pivot     = ys!(Z:.0)
-  less          <- selectP (\a -> (ys!(Z:.a)) < pivot) (\a -> (ys!(Z:.a))) n
-  equal         <- selectP (\a -> (ys!(Z:.a)) == pivot) (\a -> (ys!(Z:.a))) n
-  greater       <- selectP (\a -> (ys!(Z:.a)) > pivot) (\a -> (ys!(Z:.a))) n
-  return $ (quickSortP1' less) R.++ (delay equal) R.++ (quickSortP1' greater)
-    where (Z:.n)    = extent ys
-
-quickSortP2 :: (NFData a) => (Ord a) => [a] -> [a]
-quickSortP2 ys = runPar $ go ys 
+quickSortP1 :: (NFData a) => (Ord a) => [a] -> [a]
+quickSortP1 ys = runPar $ go ys 
   where
-    go []                 = return []
-    go (y:[])             = return [y]
-    go ys                 = do
-      let pivot = ys!!0
-      l <- spawn $ go $ filter (\y -> y < pivot) ys
-      e <- spawn $ return $ filter (\y -> y == pivot) ys
-      g <- spawn $ go $ filter (\y -> y > pivot) ys
+    go ys
+     | length ys < 10 = return $ quickSortS1 ys
+     | otherwise     = do
+      let pivot = head ys
+      l <- spawn $ go $ [y | y <- (tail ys), y <= pivot]
+      g <- spawn $ go $ [y | y <- ys, y > pivot]
       less    <- get l
-      equal   <- get e
       greater <- get g
-      return (less Data.List.++ equal Data.List.++ greater)
+      return (less Prelude.++ [pivot] Prelude.++ greater)
 
 main = defaultMain [bench "Sort" (nf sort randomInts),
-  bench "MergeS1" (nf mergeSortS1 randomInts),
-  bench "QuickS1" (nf quickSortS1 randomInts),
-  bench "MergeP1" (nf mergeSortP1 randomInts),
-  bench "QuickP1" (nf quickSortP1 randomInts)]
+ 
+  bench "QuickSequential" (nf quickSortS1 randomInts),
+  bench "QuickParMonad" (nf quickSortP1 randomInts),
+  bench "QuickEvalMonad" (nf quickSortP2 randomInts),  
+  bench "QuickStrategies" (nf quickSortP3 randomInts),
+  bench "QuickParPseq" (nf qsort randomInts),
+  bench "MergeSequential" (nf mergeSortS1 randomInts), 
+  bench "MergeParMonad" (nf mergeSortP1 randomInts),
+  bench "MergeEvalMonad" (nf mergeSortP2 randomInts),
+  bench "MergeStrategies" (nf mergeSortP3 randomInts),
+  bench "MergeParPSeq" (nf msort randomInts)]
 
-randomInts = take 100000 (randoms (mkStdGen 17465864)) :: [Int]
+randomInts = take 100000 (randoms (mkStdGen 17465864)) :: [Integer]
+
+msort :: NFData a => Ord a => [a] -> [a]
+msort [] = []
+msort (x:[]) = x:[]
+msort xs 
+  | length xs < 10 = quickSortS1 xs 
+  | otherwise      = force first `par` (force rest `pseq` (mergeS1 first rest))
+    where (xs1, xs2) = splitAt (div (length xs) 2) xs
+          first = msort xs1
+          rest = msort xs2
+
+qsort :: NFData a => Ord a => [a] -> [a]
+qsort [] = []
+qsort (x:xs) 
+  | length (x:xs) < 10 = quickSortS1 (x:xs)
+  | otherwise = force less `par` (force greater `pseq` (less ++ [x] ++ greater))
+    where less    =  qsort [y | y <- xs, y <= x]
+          greater =  qsort [y | y <- xs, y >  x]
+
