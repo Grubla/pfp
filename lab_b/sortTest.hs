@@ -8,23 +8,31 @@ import Control.Monad.Par
 import Control.DeepSeq (NFData, force)
 import Control.Parallel.Strategies
 
-quickSortS1 :: (Ord a) => [a] -> [a]
+quickSortS1 :: NFData a => (Ord a) => [a] -> [a]
 quickSortS1 []     = []
 quickSortS1 (x:[]) = [x]
 quickSortS1 (x:xs) = less ++ [x] ++ greater
   where less     = quickSortS1 [y | y <- xs, y <= x]
         greater  = quickSortS1 [y | y <- xs , y > x]
 
-quickSortP2 :: Ord a => [a] -> [a]
+quickSortP2 :: NFData a => Ord a => [a] -> [a]
 quickSortP2 [] = []
-quickSortP2 (x:xs) 
-  | length (x:xs) < 10 = quickSortS1 (x:xs)
+quickSortP2 (x:[]) = [x]
+quickSortP2 (x:y:[]) = (min x y):(max x y):[]
+quickSortP2 xs'@(a:b:c:xs) 
+  | length xs' < 10 = quickSortS1 xs'
   | otherwise          = runEval $ do 
-    less <- rpar $ force quickSortP2 [y | y <- xs, y <= x]
-    greater <- rpar $ force quickSortP2 [y | y <- xs, y > x]
+    let (x,x2,x3)  = getOrder a b c 
+    less <- rpar $ force $ quickSortP2 (x:[y | y <- xs, y <= x2])
+    greater <- rpar $ force $ quickSortP2 (x3:[y | y <- xs, y > x2])
     rseq less
     rseq greater
-    return $ less ++ [x] ++ greater
+    return $ less ++ [x2] ++ greater
+
+getOrder :: NFData a => Ord a => a -> a -> a -> (a,a,a)
+getOrder a b c = (a1,b1,c1)
+  where (a1:b1:c1:rest) = sort (a:b:c:[])
+
 
 quickSortP3 :: NFData a => Ord a => [a] -> [a]
 quickSortP3 []     = []
@@ -35,10 +43,10 @@ quickSortP3 (x:xs)
      (less,greater) = force ( (quickSortP3 [y | y <- xs, y <= x], quickSortP3 [y | y <- xs, y > x]) 
        `using` (parTuple2 rpar rseq))
 
-mergeSortS1 :: (Ord a) => [a] -> [a]
+mergeSortS1 :: NFData a => (Ord a) => [a] -> [a]
 mergeSortS1 []     = []
 mergeSortS1 (x:[]) = [x]
-mergeSortS1 ls     = mergeS1 (mergeSortS1 l1) (mergeSortS1 l2)
+mergeSortS1 ls     = mergeS1 (force (mergeSortS1 l1)) (force (mergeSortS1 l2))
   where (l1,l2) = splitAt (div (length ls) 2) ls
 
 mergeSortP1 :: (NFData a) => (Ord a) => [a] -> [a]
