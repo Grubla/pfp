@@ -7,9 +7,9 @@ import Criterion.Main
 import System.Random (mkStdGen, randoms)
 
 main = defaultMain [bench "Sequential" (whnf mainMain randomInts),
-		bench "Parallel" (whnf mainMainP randomInts),
-		bench "ParallelG" (whnf mainMainG randomInts),
-		bench "SequentialG" (whnf mainMainGS randomInts)]
+  bench "Parallel" (whnf mainMainP randomInts),
+  bench "ParallelG" (whnf mainMainG randomInts),
+  bench "SequentialG" (whnf mainMainGS randomInts)]
 
 randomInts = take 10000 (randoms (mkStdGen 1337)) :: [Int]
 
